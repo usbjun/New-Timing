@@ -163,14 +163,15 @@ window.doLogout = doLogout
 // ============================================================
 async function loadCurrentUser(user) {
   try {
-    // user が渡されていない場合のみ getUser() を呼ぶ
     if (!user) {
       const { data, error: userErr } = await supabase.auth.getUser()
       if (userErr || !data?.user) return null
       user = data.user
     }
-    const { data: profile } = await supabase
-      .from('profiles').select('*').eq('id', user.id).maybeSingle()
+    // 8秒でタイムアウト（ハング対策）
+    const profileFetch = supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+    const timeoutFetch = new Promise(resolve => setTimeout(() => resolve({ data: null }), 8000))
+    const { data: profile } = await Promise.race([profileFetch, timeoutFetch])
     return { id: user.id, email: user.email, ...(profile || {}) }
   } catch {
     return null
@@ -951,26 +952,35 @@ async function initData() {
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (session && !appReady) {
     appReady = true
-    try {
-      // session.user を直接渡して getUser() の2重呼び出しを避ける
-      currentUser = await loadCurrentUser(session.user)
-    } catch {
-      currentUser = null
-    }
+
+    // ① セッション情報だけで最低限のユーザー情報を設定し、すぐに画面を表示
+    currentUser = { id: session.user.id, email: session.user.email, role: 'viewer' }
     updateHeaderUser()
-    showMainApp()          // 必ずメイン画面を表示
-    try {
-      await initData()
-    } catch (err) {
-      showToast('データの読み込みに失敗しました: ' + err.message, true)
+    showMainApp()
+
+    // ② データ読み込みとプロフィール取得を並行実行（どちらがハングしても止まらない）
+    const [dataResult, profileResult] = await Promise.allSettled([
+      initData(),
+      loadCurrentUser(session.user)
+    ])
+
+    // ③ プロフィールが取得できたらヘッダーと画面を更新
+    if (profileResult.status === 'fulfilled' && profileResult.value) {
+      currentUser = profileResult.value
+      updateHeaderUser()
+      buildTimeline()  // ロール確定後にタイムラインを再描画（admin/viewer で表示が変わる）
     }
+    if (dataResult.status === 'rejected') {
+      showToast('データの読み込みに失敗しました', true)
+    }
+
   } else if (session && appReady) {
     // プロフィール更新などで再発火した場合
-    try {
-      currentUser = await loadCurrentUser(session.user)
-    } catch {
-      // currentUser は現状維持
-    }
+    const result = await Promise.race([
+      loadCurrentUser(session.user),
+      new Promise(resolve => setTimeout(() => resolve(null), 8000))
+    ])
+    if (result) currentUser = result
     updateHeaderUser()
   } else if (!session) {
     appReady = false
