@@ -154,7 +154,14 @@ window.doLogin = doLogin
 
 // ログアウト
 async function doLogout() {
-  await supabase.auth.signOut()
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch { /* ignore */ } finally {
+    // signOut が失敗・ハングしても強制的にログイン画面へ
+    appReady = false
+    currentUser = null
+    showLoginScreen()
+  }
 }
 window.doLogout = doLogout
 
@@ -319,8 +326,12 @@ function tileHtml(p) {
 //  Supabase CRUD
 // ============================================================
 async function dbLoadAll() {
-  const { data, error } = await supabase
+  const fetchPromise = supabase
     .from('products').select('*').order('sort_order', { ascending: true })
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('接続タイムアウト')), 10000)
+  )
+  const { data, error } = await Promise.race([fetchPromise, timeout])
   if (error) throw error
   return data || []
 }
@@ -937,11 +948,13 @@ async function initData() {
   setLoading(true)
   try {
     products = await dbLoadAll()
-    buildTimeline()
-    setTimeout(() => jumpToMonth(TODAY_KEY), 120)
   } catch(err) {
+    products = []
     showToast('データの読み込みに失敗しました: ' + err.message, true)
   } finally {
+    // 成功・失敗どちらでも必ずタイムラインを描画
+    buildTimeline()
+    setTimeout(() => jumpToMonth(TODAY_KEY), 120)
     setLoading(false)
   }
 }
@@ -949,39 +962,33 @@ async function initData() {
 // ============================================================
 //  Auth ステート監視 & 起動
 // ============================================================
-supabase.auth.onAuthStateChange(async (event, session) => {
+supabase.auth.onAuthStateChange((event, session) => {
   if (session && !appReady) {
     appReady = true
 
-    // ① セッション情報だけで最低限のユーザー情報を設定し、すぐに画面を表示
+    // セッション情報だけで即座に画面表示
     currentUser = { id: session.user.id, email: session.user.email, role: 'viewer' }
     updateHeaderUser()
     showMainApp()
 
-    // ② データ読み込みとプロフィール取得を並行実行（どちらがハングしても止まらない）
-    const [dataResult, profileResult] = await Promise.allSettled([
-      initData(),
-      loadCurrentUser(session.user)
-    ])
+    // データ読み込みとプロフィール取得は await せず独立して実行
+    initData()
 
-    // ③ プロフィールが取得できたらヘッダーと画面を更新
-    if (profileResult.status === 'fulfilled' && profileResult.value) {
-      currentUser = profileResult.value
-      updateHeaderUser()
-      buildTimeline()  // ロール確定後にタイムラインを再描画（admin/viewer で表示が変わる）
-    }
-    if (dataResult.status === 'rejected') {
-      showToast('データの読み込みに失敗しました', true)
-    }
+    loadCurrentUser(session.user).then(user => {
+      if (user) {
+        currentUser = user
+        updateHeaderUser()
+        buildTimeline()  // ロール確定後にタイムラインを再描画
+      }
+    }).catch(() => {})
 
   } else if (session && appReady) {
     // プロフィール更新などで再発火した場合
-    const result = await Promise.race([
-      loadCurrentUser(session.user),
-      new Promise(resolve => setTimeout(() => resolve(null), 8000))
-    ])
-    if (result) currentUser = result
-    updateHeaderUser()
+    loadCurrentUser(session.user).then(user => {
+      if (user) currentUser = user
+      updateHeaderUser()
+    }).catch(() => {})
+
   } else if (!session) {
     appReady = false
     currentUser = null
