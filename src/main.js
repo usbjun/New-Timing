@@ -162,11 +162,15 @@ window.doLogout = doLogout
 //  ユーザー情報の読み込み
 // ============================================================
 async function loadCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
-  return { id: user.id, email: user.email, ...profile }
+  try {
+    const { data: { user }, error: userErr } = await supabase.auth.getUser()
+    if (userErr || !user) return null
+    const { data: profile } = await supabase
+      .from('profiles').select('*').eq('id', user.id).single()
+    return { id: user.id, email: user.email, ...(profile || {}) }
+  } catch {
+    return null
+  }
 }
 
 // ============================================================
@@ -943,13 +947,25 @@ async function initData() {
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (session && !appReady) {
     appReady = true
-    currentUser = await loadCurrentUser()
+    try {
+      currentUser = await loadCurrentUser()
+    } catch {
+      currentUser = null
+    }
     updateHeaderUser()
-    showMainApp()
-    await initData()
+    showMainApp()          // 必ずメイン画面を表示
+    try {
+      await initData()
+    } catch (err) {
+      showToast('データの読み込みに失敗しました: ' + err.message, true)
+    }
   } else if (session && appReady) {
     // プロフィール更新などで再発火した場合
-    currentUser = await loadCurrentUser()
+    try {
+      currentUser = await loadCurrentUser()
+    } catch {
+      // currentUser は現状維持
+    }
     updateHeaderUser()
   } else if (!session) {
     appReady = false
