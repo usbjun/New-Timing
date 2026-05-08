@@ -161,12 +161,16 @@ window.doLogout = doLogout
 // ============================================================
 //  ユーザー情報の読み込み
 // ============================================================
-async function loadCurrentUser() {
+async function loadCurrentUser(user) {
   try {
-    const { data: { user }, error: userErr } = await supabase.auth.getUser()
-    if (userErr || !user) return null
+    // user が渡されていない場合のみ getUser() を呼ぶ
+    if (!user) {
+      const { data, error: userErr } = await supabase.auth.getUser()
+      if (userErr || !data?.user) return null
+      user = data.user
+    }
     const { data: profile } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single()
+      .from('profiles').select('*').eq('id', user.id).maybeSingle()
     return { id: user.id, email: user.email, ...(profile || {}) }
   } catch {
     return null
@@ -948,7 +952,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   if (session && !appReady) {
     appReady = true
     try {
-      currentUser = await loadCurrentUser()
+      // session.user を直接渡して getUser() の2重呼び出しを避ける
+      currentUser = await loadCurrentUser(session.user)
     } catch {
       currentUser = null
     }
@@ -962,7 +967,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   } else if (session && appReady) {
     // プロフィール更新などで再発火した場合
     try {
-      currentUser = await loadCurrentUser()
+      currentUser = await loadCurrentUser(session.user)
     } catch {
       // currentUser は現状維持
     }
