@@ -25,10 +25,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 // ============================================================
 //  状態
 // ============================================================
-let products    = []
-let editingId   = null
+let products     = []
+let currentUser  = null   // { id, email, name, team, role }
+let appReady     = false  // 二重初期化防止
+
+let editingId    = null
 let selectedCat  = null
 let selectedTeam = null
+
+// ユーザー管理
+let editingUserId    = null
+let editUserTeamSel  = ''
+let editUserRoleSel  = ''
+let profileTeamSel   = ''
+
+// ユーザー作成
+let createUserTeamSel = ''
+let createUserRoleSel = 'viewer'
 
 // ============================================================
 //  月リスト (2026年4月 〜 2027年8月)
@@ -45,6 +58,9 @@ function buildMonths() {
 }
 const MONTHS = buildMonths()
 
+const NOW       = new Date()
+const TODAY_KEY = `${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,'0')}`
+
 function monthLabel(key) {
   const [y, m] = key.split('-')
   return `${y}年${parseInt(m)}月`
@@ -57,19 +73,126 @@ function announceLabel(releaseKey, offset) {
   return `${y}年${m}月案内`
 }
 
-// ============================================================
-//  今月
-// ============================================================
-const NOW = new Date()
-const TODAY_KEY = `${NOW.getFullYear()}-${String(NOW.getMonth()+1).padStart(2,'0')}`
+function teamBgClass(team) {
+  return team ? `team-${team}` : 'team-none'
+}
+
+function avatarColor(team) {
+  return { A: '#8b5cf6', B: '#f59e0b', C: '#14b8a6' }[team] || '#94a3b8'
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
 
 // ============================================================
-//  ローディング制御
+//  ローディング
 // ============================================================
 function setLoading(on) {
   document.getElementById('loadingBar').classList.toggle('active', on)
   const btn = document.getElementById('btnAddMain')
   if (btn) btn.disabled = on
+}
+
+// ============================================================
+//  トースト
+// ============================================================
+let _toastTimer = null
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.classList.toggle('error', isError)
+  t.classList.add('show')
+  clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2400)
+}
+
+// ============================================================
+//  AUTH — ログイン画面の表示切替
+// ============================================================
+function showLoginScreen() {
+  document.getElementById('loginScreen').classList.remove('hidden')
+  document.getElementById('mainApp').style.display = 'none'
+  clearLoginError()
+}
+
+function showMainApp() {
+  document.getElementById('loginScreen').classList.add('hidden')
+  const app = document.getElementById('mainApp')
+  app.style.display    = 'flex'
+  app.style.flexDirection = 'column'
+  app.style.height     = '100vh'
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError')
+  el.textContent = msg
+  el.classList.add('show')
+}
+function clearLoginError() {
+  document.getElementById('loginError').classList.remove('show')
+}
+
+// ログイン
+async function doLogin() {
+  clearLoginError()
+  const email    = document.getElementById('loginEmail').value.trim()
+  const password = document.getElementById('loginPassword').value
+  if (!email || !password) { showLoginError('メールとパスワードを入力してください'); return }
+
+  const btn = document.getElementById('btnLogin')
+  btn.disabled = true; btn.textContent = 'ログイン中…'
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  btn.disabled = false; btn.textContent = 'ログイン'
+  if (error) showLoginError('ログインに失敗しました：' + error.message)
+}
+window.doLogin = doLogin
+
+// ログアウト
+async function doLogout() {
+  await supabase.auth.signOut()
+}
+window.doLogout = doLogout
+
+// ============================================================
+//  ユーザー情報の読み込み
+// ============================================================
+async function loadCurrentUser() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data: profile } = await supabase
+    .from('profiles').select('*').eq('id', user.id).single()
+  return { id: user.id, email: user.email, ...profile }
+}
+
+// ============================================================
+//  ヘッダーのユーザーエリア更新
+// ============================================================
+function updateHeaderUser() {
+  if (!currentUser) return
+  const area = document.getElementById('headerUserArea')
+  const teamCls   = teamBgClass(currentUser.team)
+  const teamLabel = currentUser.team || '—'
+  const isAdmin   = currentUser.role === 'admin'
+
+  area.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="header-user-chip" onclick="openProfileModal()" title="プロフィール編集">
+        <div class="header-team-badge ${teamCls}">${teamLabel}</div>
+        <span class="header-user-name">${esc(currentUser.name || currentUser.email)}</span>
+      </div>
+      ${isAdmin ? `<button class="header-icon-btn admin-btn" onclick="openUserMgmt()" title="ユーザー管理">👑</button>` : ''}
+      <button class="header-icon-btn" onclick="doLogout()" title="ログアウト">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>`
 }
 
 // ============================================================
@@ -107,7 +230,7 @@ function buildTimeline() {
   const tl = document.getElementById('timeline')
   tl.innerHTML = ''
   MONTHS.forEach(mo => {
-    const key = mo.key
+    const key    = mo.key
     const prods4 = products.filter(p => p.release === key && p.cat === 1)
     const prods3 = products.filter(p => p.release === key && (p.cat === 2 || p.cat === 3))
 
@@ -145,13 +268,11 @@ function buildTimeline() {
     tl.appendChild(col)
   })
 
-  // btn-in-col クリック
   tl.querySelectorAll('.btn-in-col').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', () =>
       openAddModal(btn.dataset.release, btn.dataset.defaultcat === '1' ? 1 : 23)
-    })
+    )
   })
-
   attachTileDragListeners()
 }
 
@@ -163,12 +284,12 @@ function emptyState() {
 }
 
 function tileHtml(p) {
-  const price   = p.price  ? `¥${Number(p.price).toLocaleString()}` : '—'
-  const box     = p.box    || '—'
-  const ctn     = p.ctn    || '—'
+  const price   = p.price ? `¥${Number(p.price).toLocaleString()}` : '—'
+  const box     = p.box   || '—'
+  const ctn     = p.ctn   || '—'
   const person  = esc(p.person || '—')
-  const teamCls = p.team   ? `team-${p.team}` : 'team-none'
-  const teamLbl = p.team   || '?'
+  const teamCls = teamBgClass(p.team)
+  const teamLbl = p.team || '?'
   return `
     <div class="product-tile cat-${p.cat}" data-id="${p.id}">
       <div class="tile-badge cat-${p.cat}">${p.cat}</div>
@@ -185,32 +306,12 @@ function tileHtml(p) {
     </div>`
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-}
-
-// ============================================================
-//  月セレクト
-// ============================================================
-function buildReleaseSelect() {
-  const sel = document.getElementById('fRelease')
-  sel.innerHTML = ''
-  MONTHS.forEach(mo => {
-    const opt = document.createElement('option')
-    opt.value = mo.key
-    opt.textContent = monthLabel(mo.key)
-    sel.appendChild(opt)
-  })
-}
-
 // ============================================================
 //  Supabase CRUD
 // ============================================================
 async function dbLoadAll() {
   const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .order('sort_order', { ascending: true })
+    .from('products').select('*').order('sort_order', { ascending: true })
   if (error) throw error
   return data || []
 }
@@ -225,20 +326,32 @@ async function dbDelete(id) {
   if (error) throw error
 }
 
-// sort_order を products 配列のインデックスに基づいて一括同期
 async function dbSyncOrder() {
-  if (products.length === 0) return
-  const updates = products.map((p, i) => ({ id: p.id, sort_order: i }))
-  const { error } = await supabase.from('products').upsert(updates)
+  if (!products.length) return
+  const { error } = await supabase.from('products')
+    .upsert(products.map((p, i) => ({ id: p.id, sort_order: i })))
   if (error) throw error
 }
 
 // ============================================================
-//  モーダル
+//  月セレクト
+// ============================================================
+function buildReleaseSelect() {
+  const sel = document.getElementById('fRelease')
+  sel.innerHTML = ''
+  MONTHS.forEach(mo => {
+    const opt = document.createElement('option')
+    opt.value = mo.key; opt.textContent = monthLabel(mo.key)
+    sel.appendChild(opt)
+  })
+}
+
+// ============================================================
+//  商品モーダル
 // ============================================================
 function openAddModal(releaseKey, defaultCat) {
   editingId = null
-  resetForm()
+  resetProductForm()
   document.getElementById('modalTitle').textContent = '商品を追加'
   document.getElementById('btnDelete').style.display = 'none'
   if (releaseKey) document.getElementById('fRelease').value = releaseKey
@@ -253,8 +366,8 @@ function openEditModal(id) {
   const p = products.find(x => x.id === id)
   if (!p) return
   editingId = id
-  resetForm()
-  document.getElementById('modalTitle').textContent = '商品を編集'
+  resetProductForm()
+  document.getElementById('modalTitle').textContent  = '商品を編集'
   document.getElementById('btnDelete').style.display = 'block'
   document.getElementById('fName').value    = p.name
   document.getElementById('fRelease').value = p.release
@@ -273,16 +386,15 @@ function closeModal() {
 }
 window.closeModal = closeModal
 
-function resetForm() {
+function resetProductForm() {
   ;['fName','fPrice','fBox','fCtn','fPerson'].forEach(id => {
     const el = document.getElementById(id)
-    el.value = ''
-    el.classList.remove('error')
+    el.value = ''; el.classList.remove('error')
   })
   document.getElementById('fRelease').value = TODAY_KEY
   selectedCat = null; selectedTeam = null
   document.querySelectorAll('.cat-opt').forEach(el => el.className = 'cat-opt')
-  document.querySelectorAll('.team-opt').forEach(el => el.className = 'team-opt')
+  document.querySelectorAll('#overlay .team-opt').forEach(el => el.className = 'team-opt')
 }
 
 function selectCat(n) {
@@ -296,7 +408,7 @@ window.selectCat = selectCat
 
 function selectTeam(t) {
   selectedTeam = t
-  document.querySelectorAll('.team-opt').forEach(el => {
+  document.querySelectorAll('#overlay .team-opt').forEach(el => {
     el.className = 'team-opt'
     if (el.dataset.team === t) el.classList.add('sel-' + t)
   })
@@ -305,17 +417,10 @@ window.selectTeam = selectTeam
 
 async function saveProduct() {
   const name = document.getElementById('fName').value.trim()
-  if (!name) {
-    document.getElementById('fName').classList.add('error')
-    showToast('商品名を入力してください', true); return
-  }
+  if (!name) { document.getElementById('fName').classList.add('error'); showToast('商品名を入力してください', true); return }
   if (!selectedCat) { showToast('案内区分を選択してください', true); return }
 
-  // 新規の場合は現在の末尾に追加
-  const existingSortOrder = editingId
-    ? (products.find(x => x.id === editingId)?.sort_order ?? products.length)
-    : products.length
-
+  const existing = editingId ? products.find(x => x.id === editingId) : null
   const p = {
     id:         editingId || uid(),
     name,
@@ -326,7 +431,7 @@ async function saveProduct() {
     person:     document.getElementById('fPerson').value.trim(),
     team:       selectedTeam || '',
     cat:        selectedCat,
-    sort_order: existingSortOrder,
+    sort_order: existing ? existing.sort_order : products.length,
   }
 
   setSaveLoading(true)
@@ -338,8 +443,7 @@ async function saveProduct() {
     } else {
       products.push(p)
     }
-    closeModal()
-    buildTimeline()
+    closeModal(); buildTimeline()
     showToast(editingId ? '商品を更新しました' : '商品を追加しました')
   } catch(err) {
     showToast('保存に失敗しました: ' + err.message, true)
@@ -355,11 +459,9 @@ async function confirmDelete() {
   try {
     await dbDelete(editingId)
     products = products.filter(p => p.id !== editingId)
-    // sort_order を再整理
     products.forEach((p, i) => { p.sort_order = i })
     await dbSyncOrder()
-    closeModal()
-    buildTimeline()
+    closeModal(); buildTimeline()
     showToast('商品を削除しました')
   } catch(err) {
     showToast('削除に失敗しました: ' + err.message, true)
@@ -371,11 +473,272 @@ window.confirmDelete = confirmDelete
 
 function setSaveLoading(on) {
   const btn = document.getElementById('btnSave')
-  if (btn) {
-    btn.disabled = on
-    btn.textContent = on ? '保存中…' : '保存する'
+  if (btn) { btn.disabled = on; btn.textContent = on ? '保存中…' : '保存する' }
+}
+
+// ============================================================
+//  プロフィール編集モーダル
+// ============================================================
+function openProfileModal() {
+  if (!currentUser) return
+  profileTeamSel = currentUser.team || ''
+  document.getElementById('profileName').value = currentUser.name || ''
+  document.getElementById('profileEmail').textContent = currentUser.email || ''
+  document.querySelectorAll('#profileOverlay .team-opt').forEach(el => {
+    el.className = 'team-opt'
+    if (el.dataset.team === profileTeamSel) el.classList.add('sel-' + profileTeamSel)
+  })
+  document.getElementById('profileOverlay').classList.add('open')
+}
+window.openProfileModal = openProfileModal
+
+function closeProfileModal() {
+  document.getElementById('profileOverlay').classList.remove('open')
+}
+window.closeProfileModal = closeProfileModal
+
+function selectProfileTeam(t) {
+  profileTeamSel = t
+  document.querySelectorAll('#profileOverlay .team-opt').forEach(el => {
+    el.className = 'team-opt'
+    if (el.dataset.team === t) el.classList.add('sel-' + t)
+  })
+}
+window.selectProfileTeam = selectProfileTeam
+
+async function saveProfile() {
+  const name = document.getElementById('profileName').value.trim()
+  const btn  = document.getElementById('btnProfileSave')
+  btn.disabled = true; btn.textContent = '保存中…'
+  try {
+    const { error } = await supabase.from('profiles')
+      .update({ name, team: profileTeamSel })
+      .eq('id', currentUser.id)
+    if (error) throw error
+    currentUser.name = name
+    currentUser.team = profileTeamSel
+    updateHeaderUser()
+    closeProfileModal()
+    showToast('プロフィールを更新しました')
+  } catch(err) {
+    showToast('更新に失敗しました: ' + err.message, true)
+  } finally {
+    btn.disabled = false; btn.textContent = '保存する'
   }
 }
+window.saveProfile = saveProfile
+
+// ============================================================
+//  ユーザー管理（管理者専用）
+// ============================================================
+async function openUserMgmt() {
+  if (currentUser?.role !== 'admin') { showToast('管理者のみ利用可能です', true); return }
+  document.getElementById('userMgmtOverlay').classList.add('open')
+  await reloadUserList()
+}
+window.openUserMgmt = openUserMgmt
+
+function closeUserMgmt() {
+  document.getElementById('userMgmtOverlay').classList.remove('open')
+}
+window.closeUserMgmt = closeUserMgmt
+
+async function reloadUserList() {
+  const area = document.getElementById('userListArea')
+  area.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;">読み込み中…</div>'
+  try {
+    const { data: users, error } = await supabase.rpc('get_all_users')
+    if (error) throw error
+    if (!users || users.length === 0) {
+      area.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;">ユーザーがいません</div>'
+      return
+    }
+    area.innerHTML = `<div class="user-list">${users.map(userRowHtml).join('')}</div>`
+    // ボタンにイベント割り当て
+    area.querySelectorAll('[data-userid]').forEach(btn => {
+      btn.addEventListener('click', () => openEditUser(btn.dataset.userid, users))
+    })
+  } catch(err) {
+    area.innerHTML = `<div style="text-align:center;color:#dc2626;padding:20px;">読み込み失敗: ${err.message}</div>`
+  }
+}
+
+function userRowHtml(u) {
+  const teamCls  = teamBgClass(u.team)
+  const teamLbl  = u.team || '?'
+  const isSelf   = u.id === currentUser?.id
+  const roleClass = u.role === 'admin' ? 'admin' : 'viewer'
+  const roleLabel = u.role === 'admin' ? '管理者' : '閲覧者'
+  return `
+    <div class="user-row">
+      <div class="user-row-avatar" style="background:${avatarColor(u.team)}">${teamLbl}</div>
+      <div class="user-row-info">
+        <div class="user-row-name">${esc(u.name || '(名前未設定)')} ${isSelf ? '<span style="font-size:10px;color:#94a3b8;">(自分)</span>' : ''}</div>
+        <div class="user-row-email">${esc(u.email)}</div>
+      </div>
+      <div class="user-row-badges">
+        <span class="role-badge ${roleClass}">${roleLabel}</span>
+      </div>
+      <button class="btn-user-edit" data-userid="${u.id}">編集</button>
+    </div>`
+}
+
+function openEditUser(userId, users) {
+  const u = users.find(x => x.id === userId)
+  if (!u) return
+  editingUserId   = userId
+  editUserTeamSel = u.team || ''
+  editUserRoleSel = u.role || 'viewer'
+
+  document.getElementById('editUserTitle').textContent = `${esc(u.name || u.email)} を編集`
+  document.getElementById('editUserName').value = u.name || ''
+
+  // チームセレクタ
+  document.querySelectorAll('#editUserOverlay .team-opt').forEach(el => {
+    el.className = 'team-opt'
+    if (el.dataset.team === editUserTeamSel) el.classList.add('sel-' + editUserTeamSel)
+  })
+  // 権限セレクタ
+  document.querySelectorAll('.role-opt').forEach(el => {
+    el.className = 'role-opt'
+    if (el.dataset.role === editUserRoleSel) el.classList.add('sel-' + editUserRoleSel)
+  })
+
+  document.getElementById('editUserOverlay').classList.add('open')
+}
+
+function closeEditUser() {
+  document.getElementById('editUserOverlay').classList.remove('open')
+  editingUserId = null
+}
+window.closeEditUser = closeEditUser
+
+function selectEditUserTeam(t) {
+  editUserTeamSel = t
+  document.querySelectorAll('#editUserOverlay .team-opt').forEach(el => {
+    el.className = 'team-opt'
+    if (el.dataset.team === t) el.classList.add('sel-' + t)
+  })
+}
+window.selectEditUserTeam = selectEditUserTeam
+
+function selectEditUserRole(r) {
+  editUserRoleSel = r
+  document.querySelectorAll('.role-opt').forEach(el => {
+    el.className = 'role-opt'
+    if (el.dataset.role === r) el.classList.add('sel-' + r)
+  })
+}
+window.selectEditUserRole = selectEditUserRole
+
+async function saveUserEdit() {
+  if (!editingUserId) return
+  const name = document.getElementById('editUserName').value.trim()
+  const btn  = document.getElementById('btnEditUserSave')
+  btn.disabled = true; btn.textContent = '保存中…'
+  try {
+    const { error } = await supabase.from('profiles')
+      .update({ name, team: editUserTeamSel, role: editUserRoleSel })
+      .eq('id', editingUserId)
+    if (error) throw error
+    // 自分自身を編集した場合はヘッダーも更新
+    if (editingUserId === currentUser?.id) {
+      currentUser.name = name
+      currentUser.team = editUserTeamSel
+      currentUser.role = editUserRoleSel
+      updateHeaderUser()
+    }
+    closeEditUser()
+    await reloadUserList()
+    showToast('ユーザーを更新しました')
+  } catch(err) {
+    showToast('更新に失敗しました: ' + err.message, true)
+  } finally {
+    btn.disabled = false; btn.textContent = '保存する'
+  }
+}
+window.saveUserEdit = saveUserEdit
+
+// ============================================================
+//  ユーザー作成（管理者専用）
+// ============================================================
+function openCreateUser() {
+  createUserTeamSel = ''
+  createUserRoleSel = 'viewer'
+  document.getElementById('createUserName').value     = ''
+  document.getElementById('createUserEmail').value    = ''
+  document.getElementById('createUserPassword').value = ''
+  document.querySelectorAll('#createUserOverlay .team-opt').forEach(el => el.className = 'team-opt')
+  document.querySelectorAll('#createUserOverlay .role-opt').forEach(el => {
+    el.className = 'role-opt'
+    if (el.dataset.role === 'viewer') el.classList.add('sel-viewer')
+  })
+  document.getElementById('createUserOverlay').classList.add('open')
+  setTimeout(() => document.getElementById('createUserName').focus(), 80)
+}
+window.openCreateUser = openCreateUser
+
+function closeCreateUser() {
+  document.getElementById('createUserOverlay').classList.remove('open')
+}
+window.closeCreateUser = closeCreateUser
+
+function selectCreateUserTeam(t) {
+  createUserTeamSel = t
+  document.querySelectorAll('#createUserOverlay .team-opt').forEach(el => {
+    el.className = 'team-opt'
+    if (el.dataset.team === t) el.classList.add('sel-' + t)
+  })
+}
+window.selectCreateUserTeam = selectCreateUserTeam
+
+function selectCreateUserRole(r) {
+  createUserRoleSel = r
+  document.querySelectorAll('#createUserOverlay .role-opt').forEach(el => {
+    el.className = 'role-opt'
+    if (el.dataset.role === r) el.classList.add('sel-' + r)
+  })
+}
+window.selectCreateUserRole = selectCreateUserRole
+
+async function doCreateUser() {
+  const name     = document.getElementById('createUserName').value.trim()
+  const email    = document.getElementById('createUserEmail').value.trim()
+  const password = document.getElementById('createUserPassword').value
+
+  if (!name)                { showToast('氏名を入力してください', true); return }
+  if (!email)               { showToast('メールアドレスを入力してください', true); return }
+  if (password.length < 6)  { showToast('パスワードは6文字以上で設定してください', true); return }
+
+  const btn = document.getElementById('btnCreateUserSave')
+  btn.disabled = true; btn.textContent = '作成中…'
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) throw new Error('セッションが切れています')
+
+    const res = await fetch('/api/create-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ email, password, name, team: createUserTeamSel, role: createUserRoleSel })
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error || '作成に失敗しました')
+
+    closeCreateUser()
+    await reloadUserList()
+    showToast('ユーザーを作成しました')
+  } catch(err) {
+    showToast('作成に失敗しました: ' + err.message, true)
+  } finally {
+    btn.disabled = false; btn.textContent = '作成する'
+  }
+}
+window.doCreateUser = doCreateUser
 
 // ============================================================
 //  ドラッグ & ドロップ（並び順変更対応）
@@ -390,34 +753,26 @@ function attachTileDragListeners() {
 
 function onTileMouseDown(e) {
   if (e.button !== 0) return
-  if (document.getElementById('overlay').classList.contains('open')) return
+  if (document.querySelector('.overlay.open')) return
   e.preventDefault()
   const tile = e.currentTarget
   const rect = tile.getBoundingClientRect()
   drag = {
-    id: tile.dataset.id,
-    tile,
-    ghost: null,
+    id: tile.dataset.id, tile, ghost: null,
     startX: e.clientX, startY: e.clientY,
-    offsetX: e.clientX - rect.left,
-    offsetY: e.clientY - rect.top,
-    moved: false,
-    srcRect: rect,
-    dropArea: null,
-    insertBeforeId: undefined,
+    offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top,
+    moved: false, srcRect: rect, dropArea: null, insertBeforeId: undefined,
   }
 }
 
-// ---- 挿入ライン ----
 function showInsertLine(refTile, position) {
   removeInsertLine()
   const r = refTile.getBoundingClientRect()
   const line = document.createElement('div')
   line.id = 'insert-line'
-  const y = position === 'before' ? r.top - 3 : r.bottom + 1
   Object.assign(line.style, {
-    position: 'fixed',
-    left: r.left + 'px', top: y + 'px',
+    position: 'fixed', left: r.left + 'px',
+    top: (position === 'before' ? r.top - 3 : r.bottom + 1) + 'px',
     width: r.width + 'px', height: '3px',
     background: '#3b82f6', borderRadius: '2px',
     pointerEvents: 'none', zIndex: '9998',
@@ -425,6 +780,7 @@ function showInsertLine(refTile, position) {
   })
   document.body.appendChild(line)
 }
+
 function removeInsertLine() {
   const el = document.getElementById('insert-line')
   if (el) el.remove()
@@ -432,21 +788,14 @@ function removeInsertLine() {
 
 document.addEventListener('mousemove', function(e) {
   if (!drag) return
-
-  const dx = e.clientX - drag.startX
-  const dy = e.clientY - drag.startY
+  const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY
 
   if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 6) {
     drag.moved = true
     const p = products.find(x => x.id === drag.id)
     const ghost = drag.tile.cloneNode(true)
     ghost.className = `product-tile cat-${p?.cat ?? 1} drag-ghost`
-    Object.assign(ghost.style, {
-      width: drag.srcRect.width + 'px',
-      left:  drag.srcRect.left  + 'px',
-      top:   drag.srcRect.top   + 'px',
-      margin: '0',
-    })
+    Object.assign(ghost.style, { width: drag.srcRect.width + 'px', left: drag.srcRect.left + 'px', top: drag.srcRect.top + 'px', margin: '0' })
     document.body.appendChild(ghost)
     drag.ghost = ghost
     drag.tile.classList.add('is-dragging')
@@ -462,40 +811,28 @@ document.addEventListener('mousemove', function(e) {
   drag.ghost.style.display = ''
 
   const area = el ? el.closest('.tile-area') : null
-
   document.querySelectorAll('.tile-area').forEach(a => a.classList.remove('drag-over'))
   removeInsertLine()
-  drag.dropArea = null
-  drag.insertBeforeId = undefined
-
+  drag.dropArea = null; drag.insertBeforeId = undefined
   if (!area) return
 
-  area.classList.add('drag-over')
-  drag.dropArea = area
-
+  area.classList.add('drag-over'); drag.dropArea = area
   const siblings = [...area.querySelectorAll('.product-tile:not(.is-dragging)')]
-  if (siblings.length === 0) { drag.insertBeforeId = null; return }
+  if (!siblings.length) { drag.insertBeforeId = null; return }
 
   let decided = false
   for (let i = 0; i < siblings.length; i++) {
-    const t = siblings[i]
-    const r = t.getBoundingClientRect()
+    const t = siblings[i], r = t.getBoundingClientRect()
     if (e.clientY < r.top + r.height / 2) {
-      drag.insertBeforeId = t.dataset.id
-      showInsertLine(t, 'before')
-      decided = true; break
+      drag.insertBeforeId = t.dataset.id; showInsertLine(t, 'before'); decided = true; break
     }
     if (i === siblings.length - 1) {
-      drag.insertBeforeId = null
-      showInsertLine(t, 'after')
-      decided = true
+      drag.insertBeforeId = null; showInsertLine(t, 'after'); decided = true
     }
   }
   if (!decided) drag.insertBeforeId = null
 
-  // タイムライン端での自動スクロール
-  const tl = document.getElementById('timeline')
-  const tlRect = tl.getBoundingClientRect()
+  const tl = document.getElementById('timeline'), tlRect = tl.getBoundingClientRect()
   const EDGE = 60, SPEED = 14
   if (e.clientX < tlRect.left + EDGE)  tl.scrollLeft -= SPEED
   else if (e.clientX > tlRect.right - EDGE) tl.scrollLeft += SPEED
@@ -503,10 +840,8 @@ document.addEventListener('mousemove', function(e) {
 
 document.addEventListener('mouseup', async function(e) {
   if (!drag) return
-
   const { id, tile, ghost, moved, dropArea, insertBeforeId } = drag
   drag = null
-
   if (ghost) ghost.remove()
   tile.classList.remove('is-dragging')
   document.body.style.cursor = ''
@@ -523,20 +858,17 @@ document.addEventListener('mouseup', async function(e) {
 
   const newRelease = m4 ? m4[1] : m3[1]
   const colType    = m4 ? 4 : 3
-
   const srcIdx = products.findIndex(x => x.id === id)
   if (srcIdx < 0) return
+
   const p = { ...products[srcIdx] }
   p.release = newRelease
   p.cat = colType === 4 ? 1 : (p.cat === 1 ? 2 : p.cat)
 
-  // 配列から取り除いて挿入
   products.splice(srcIdx, 1)
-
   let insertIdx
   if (insertBeforeId === null) {
-    const isGroup = x => x.release === newRelease &&
-      (colType === 4 ? x.cat === 1 : (x.cat === 2 || x.cat === 3))
+    const isGroup = x => x.release === newRelease && (colType === 4 ? x.cat === 1 : x.cat === 2 || x.cat === 3)
     let lastIdx = -1
     products.forEach((x, i) => { if (isGroup(x)) lastIdx = i })
     insertIdx = lastIdx >= 0 ? lastIdx + 1 : products.length
@@ -544,43 +876,20 @@ document.addEventListener('mouseup', async function(e) {
     insertIdx = products.findIndex(x => x.id === insertBeforeId)
     if (insertIdx < 0) insertIdx = products.length
   }
-
   products.splice(insertIdx, 0, p)
-
-  // sort_order を配列インデックスに揃えて DB 同期
   products.forEach((x, i) => { x.sort_order = i })
 
   buildTimeline()
-
   try {
     await dbSyncOrder()
-    // 移動した商品自体の release/cat も更新
     await dbUpsert(p)
     showToast('商品を移動しました')
   } catch(err) {
     showToast('同期に失敗しました: ' + err.message, true)
-    // 失敗時は DB から再読み込みして整合性を回復
     products = await dbLoadAll()
     buildTimeline()
   }
 })
-
-// ============================================================
-//  ユーティリティ
-// ============================================================
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
-}
-
-let _toastTimer = null
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toast')
-  t.textContent = msg
-  t.classList.toggle('error', isError)
-  t.classList.add('show')
-  clearTimeout(_toastTimer)
-  _toastTimer = setTimeout(() => t.classList.remove('show'), 2400)
-}
 
 // ============================================================
 //  スクロールナビ
@@ -590,8 +899,10 @@ document.getElementById('btnLeft').onclick = () =>
 document.getElementById('btnRight').onclick = () =>
   document.getElementById('timeline').scrollBy({ left:  310, behavior: 'smooth' })
 
-document.getElementById('overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal()
+document.querySelectorAll('.overlay').forEach(ov => {
+  ov.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open')
+  })
 })
 
 function updateChipByScroll() {
@@ -609,9 +920,9 @@ function updateChipByScroll() {
 document.getElementById('timeline').addEventListener('scroll', updateChipByScroll, { passive: true })
 
 // ============================================================
-//  初期化
+//  データ初期化（ログイン後に呼ぶ）
 // ============================================================
-async function init() {
+async function initData() {
   buildMonthNav()
   buildReleaseSelect()
   setLoading(true)
@@ -621,10 +932,36 @@ async function init() {
     setTimeout(() => jumpToMonth(TODAY_KEY), 120)
   } catch(err) {
     showToast('データの読み込みに失敗しました: ' + err.message, true)
-    console.error(err)
   } finally {
     setLoading(false)
   }
 }
 
-init()
+// ============================================================
+//  Auth ステート監視 & 起動
+// ============================================================
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (session && !appReady) {
+    appReady = true
+    currentUser = await loadCurrentUser()
+    updateHeaderUser()
+    showMainApp()
+    await initData()
+  } else if (session && appReady) {
+    // プロフィール更新などで再発火した場合
+    currentUser = await loadCurrentUser()
+    updateHeaderUser()
+  } else if (!session) {
+    appReady = false
+    currentUser = null
+    showLoginScreen()
+  }
+})
+
+// Enterキーでログイン
+document.getElementById('loginPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin()
+})
+document.getElementById('loginEmail').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin()
+})

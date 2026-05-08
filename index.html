@@ -7,50 +7,87 @@
 </head>
 <body>
 
-<!-- ===== HEADER ===== -->
-<header class="app-header">
-  <div class="header-left">
-    <div class="app-icon">📦</div>
-    <div>
-      <div class="app-title">新商品発売タイミング管理</div>
-      <div class="app-subtitle">3か月前 / 4か月前 案内スケジュール</div>
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-card-head">
+      <div class="login-logo">📦</div>
+      <div class="login-app-title">新商品発売タイミング管理</div>
+      <div class="login-app-sub">3か月前 / 4か月前 案内スケジュール</div>
+    </div>
+
+    <div class="login-body">
+      <div class="login-error" id="loginError"></div>
+
+      <!-- ログイン -->
+      <div id="panelLogin">
+        <div class="login-form-group">
+          <label class="login-label">メールアドレス</label>
+          <input type="email" class="login-input" id="loginEmail" placeholder="example@company.com" autocomplete="email">
+        </div>
+        <div class="login-form-group">
+          <label class="login-label">パスワード</label>
+          <input type="password" class="login-input" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn-login" id="btnLogin" onclick="doLogin()">ログイン</button>
+      </div>
     </div>
   </div>
-  <div class="header-right">
-    <button class="nav-btn" id="btnLeft">&#8249;</button>
-    <button class="nav-btn" id="btnRight">&#8250;</button>
-    <button class="btn-add-main" id="btnAddMain" onclick="openAddModal()">
-      <span style="font-size:16px;line-height:1">＋</span> 商品追加
-    </button>
-  </div>
-</header>
-
-<!-- ===== LOADING BAR ===== -->
-<div class="loading-bar" id="loadingBar"></div>
-
-<!-- ===== MONTH QUICK-NAV ===== -->
-<div class="month-nav-bar" id="monthNav"></div>
-
-<!-- ===== LEGEND ===== -->
-<div class="legend-bar">
-  <span class="legend-title">案内区分：</span>
-  <div class="legend-item"><div class="cat-badge cb-1">①</div><span><strong>4か月前</strong> — チラシ準備可能</span></div>
-  <div class="legend-item"><div class="cat-badge cb-2">②</div><span><strong>3か月前</strong> — 予測発注可能</span></div>
-  <div class="legend-item"><div class="cat-badge cb-3">③</div><span><strong>3か月前</strong> — 予測不能・生産可</span></div>
-  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
-    <span class="legend-title">チーム：</span>
-    <div class="legend-item"><span class="team-badge team-A" style="width:20px;height:20px;border-radius:5px;font-size:11px;">A</span> チームA</div>
-    <div class="legend-item"><span class="team-badge team-B" style="width:20px;height:20px;border-radius:5px;font-size:11px;">B</span> チームB</div>
-    <div class="legend-item"><span class="team-badge team-C" style="width:20px;height:20px;border-radius:5px;font-size:11px;">C</span> チームC</div>
-  </div>
 </div>
 
-<!-- ===== TIMELINE ===== -->
-<div class="main-content">
-  <div class="timeline" id="timeline"></div>
-</div>
+<!-- ===== MAIN APP ===== -->
+<div id="mainApp" style="display:none;flex-direction:column;height:100vh;">
 
-<!-- ===== MODAL ===== -->
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="app-icon">📦</div>
+      <div>
+        <div class="app-title">新商品発売タイミング管理</div>
+        <div class="app-subtitle">3か月前 / 4か月前 案内スケジュール</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <button class="nav-btn" id="btnLeft">&#8249;</button>
+      <button class="nav-btn" id="btnRight">&#8250;</button>
+      <button class="btn-add-main" id="btnAddMain" onclick="openAddModal()">
+        <span style="font-size:16px;line-height:1">＋</span> 商品追加
+      </button>
+    </div>
+    <div class="header-right">
+      <!-- ユーザー情報（JS で描画） -->
+      <div id="headerUserArea"></div>
+    </div>
+  </header>
+
+  <!-- LOADING BAR -->
+  <div class="loading-bar" id="loadingBar"></div>
+
+  <!-- MONTH QUICK-NAV -->
+  <div class="month-nav-bar" id="monthNav"></div>
+
+  <!-- LEGEND -->
+  <div class="legend-bar">
+    <span class="legend-title">案内区分：</span>
+    <div class="legend-item"><div class="cat-badge cb-1">①</div><span><strong>4か月前</strong> — チラシ準備可能</span></div>
+    <div class="legend-item"><div class="cat-badge cb-2">②</div><span><strong>3か月前</strong> — 予測発注可能</span></div>
+    <div class="legend-item"><div class="cat-badge cb-3">③</div><span><strong>3か月前</strong> — 予測不能・生産可</span></div>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+      <span class="legend-title">チーム：</span>
+      <div class="legend-item"><span class="team-badge team-A" style="width:20px;height:20px;border-radius:5px;font-size:11px;">A</span> チームA</div>
+      <div class="legend-item"><span class="team-badge team-B" style="width:20px;height:20px;border-radius:5px;font-size:11px;">B</span> チームB</div>
+      <div class="legend-item"><span class="team-badge team-C" style="width:20px;height:20px;border-radius:5px;font-size:11px;">C</span> チームC</div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="main-content">
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+</div><!-- /mainApp -->
+
+<!-- ===== 商品追加・編集モーダル ===== -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-header">
@@ -58,12 +95,10 @@
       <button class="btn-modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
-
       <div class="form-group">
         <label class="form-label">商品名<span class="required">*</span></label>
         <input type="text" class="form-input" id="fName" placeholder="例：ミニチュアキッチン vol.5">
       </div>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">発売月<span class="required">*</span></label>
@@ -74,7 +109,6 @@
           <input type="number" class="form-input" id="fPrice" placeholder="500" min="0">
         </div>
       </div>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">BOX入数</label>
@@ -85,7 +119,6 @@
           <input type="number" class="form-input" id="fCtn" placeholder="48" min="1">
         </div>
       </div>
-
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">担当者</label>
@@ -94,45 +127,164 @@
         <div class="form-group">
           <label class="form-label">チーム</label>
           <div class="team-options">
-            <div class="team-opt" data-team="A" onclick="selectTeam('A')">
-              <div class="team-opt-letter">A</div>
-              <div class="team-opt-label">チームA</div>
-            </div>
-            <div class="team-opt" data-team="B" onclick="selectTeam('B')">
-              <div class="team-opt-letter">B</div>
-              <div class="team-opt-label">チームB</div>
-            </div>
-            <div class="team-opt" data-team="C" onclick="selectTeam('C')">
-              <div class="team-opt-letter">C</div>
-              <div class="team-opt-label">チームC</div>
-            </div>
+            <div class="team-opt" data-team="A" onclick="selectTeam('A')"><div class="team-opt-letter">A</div><div class="team-opt-label">チームA</div></div>
+            <div class="team-opt" data-team="B" onclick="selectTeam('B')"><div class="team-opt-letter">B</div><div class="team-opt-label">チームB</div></div>
+            <div class="team-opt" data-team="C" onclick="selectTeam('C')"><div class="team-opt-letter">C</div><div class="team-opt-label">チームC</div></div>
           </div>
         </div>
       </div>
-
       <div class="form-group">
         <label class="form-label">案内区分<span class="required">*</span></label>
         <div class="cat-options">
-          <div class="cat-opt" data-cat="1" onclick="selectCat(1)">
-            <div class="cat-opt-num">①</div>
-            <div class="cat-opt-desc">4か月前案内<br>チラシ準備可能</div>
-          </div>
-          <div class="cat-opt" data-cat="2" onclick="selectCat(2)">
-            <div class="cat-opt-num">②</div>
-            <div class="cat-opt-desc">3か月前案内<br>予測発注可能</div>
-          </div>
-          <div class="cat-opt" data-cat="3" onclick="selectCat(3)">
-            <div class="cat-opt-num">③</div>
-            <div class="cat-opt-desc">3か月前案内<br>予測不能・生産可</div>
-          </div>
+          <div class="cat-opt" data-cat="1" onclick="selectCat(1)"><div class="cat-opt-num">①</div><div class="cat-opt-desc">4か月前案内<br>チラシ準備可能</div></div>
+          <div class="cat-opt" data-cat="2" onclick="selectCat(2)"><div class="cat-opt-num">②</div><div class="cat-opt-desc">3か月前案内<br>予測発注可能</div></div>
+          <div class="cat-opt" data-cat="3" onclick="selectCat(3)"><div class="cat-opt-num">③</div><div class="cat-opt-desc">3か月前案内<br>予測不能・生産可</div></div>
         </div>
       </div>
-
     </div>
     <div class="modal-footer">
       <button class="btn btn-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-delete" id="btnDelete" style="display:none" onclick="confirmDelete()">削除</button>
-      <button class="btn btn-save" id="btnSave" onclick="saveProduct()">保存する</button>
+      <button class="btn btn-save"   id="btnSave"   onclick="saveProduct()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== プロフィール編集モーダル ===== -->
+<div class="overlay" id="profileOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">プロフィール編集</div>
+      <button class="btn-modal-close" onclick="closeProfileModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">氏名</label>
+        <input type="text" class="form-input" id="profileName" placeholder="山田 太郎">
+      </div>
+      <div class="form-group">
+        <label class="form-label">チーム</label>
+        <div class="team-options">
+          <div class="team-opt" data-team="A" onclick="selectProfileTeam('A')"><div class="team-opt-letter">A</div><div class="team-opt-label">チームA</div></div>
+          <div class="team-opt" data-team="B" onclick="selectProfileTeam('B')"><div class="team-opt-letter">B</div><div class="team-opt-label">チームB</div></div>
+          <div class="team-opt" data-team="C" onclick="selectProfileTeam('C')"><div class="team-opt-letter">C</div><div class="team-opt-label">チームC</div></div>
+        </div>
+      </div>
+      <div class="form-group" style="background:#f8fafc;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:4px;">メールアドレス（変更不可）</div>
+        <div id="profileEmail" style="font-size:13px;color:#475569;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeProfileModal()">キャンセル</button>
+      <button class="btn btn-save"   id="btnProfileSave" onclick="saveProfile()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ユーザー管理モーダル（管理者専用）===== -->
+<div class="overlay" id="userMgmtOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="modal-title">👑 ユーザー管理</div>
+      <button class="btn-modal-close" onclick="closeUserMgmt()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="userListArea"><div style="text-align:center;color:#94a3b8;padding:20px;">読み込み中…</div></div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn btn-save" onclick="openCreateUser()">＋ ユーザーを追加</button>
+      <button class="btn btn-cancel" onclick="closeUserMgmt()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ユーザー編集モーダル（管理者専用）===== -->
+<div class="overlay" id="editUserOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="editUserTitle">ユーザーを編集</div>
+      <button class="btn-modal-close" onclick="closeEditUser()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">氏名</label>
+        <input type="text" class="form-input" id="editUserName">
+      </div>
+      <div class="form-group">
+        <label class="form-label">チーム</label>
+        <div class="team-options">
+          <div class="team-opt" data-team="A" onclick="selectEditUserTeam('A')"><div class="team-opt-letter">A</div><div class="team-opt-label">チームA</div></div>
+          <div class="team-opt" data-team="B" onclick="selectEditUserTeam('B')"><div class="team-opt-letter">B</div><div class="team-opt-label">チームB</div></div>
+          <div class="team-opt" data-team="C" onclick="selectEditUserTeam('C')"><div class="team-opt-letter">C</div><div class="team-opt-label">チームC</div></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">権限</label>
+        <div class="role-options">
+          <div class="role-opt" data-role="viewer" onclick="selectEditUserRole('viewer')">
+            <div class="role-opt-icon">👁️</div>
+            <div class="role-opt-label">閲覧者</div>
+          </div>
+          <div class="role-opt" data-role="admin" onclick="selectEditUserRole('admin')">
+            <div class="role-opt-icon">👑</div>
+            <div class="role-opt-label">管理者</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeEditUser()">キャンセル</button>
+      <button class="btn btn-save"   id="btnEditUserSave" onclick="saveUserEdit()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ユーザー作成モーダル（管理者専用）===== -->
+<div class="overlay" id="createUserOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">ユーザーを追加</div>
+      <button class="btn-modal-close" onclick="closeCreateUser()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">氏名<span class="required">*</span></label>
+        <input type="text" class="form-input" id="createUserName" placeholder="山田 太郎">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メールアドレス<span class="required">*</span></label>
+        <input type="email" class="form-input" id="createUserEmail" placeholder="example@company.com" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">初期パスワード<span class="required">*</span>（6文字以上）</label>
+        <input type="password" class="form-input" id="createUserPassword" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">チーム</label>
+        <div class="team-options">
+          <div class="team-opt" data-team="A" onclick="selectCreateUserTeam('A')"><div class="team-opt-letter">A</div><div class="team-opt-label">チームA</div></div>
+          <div class="team-opt" data-team="B" onclick="selectCreateUserTeam('B')"><div class="team-opt-letter">B</div><div class="team-opt-label">チームB</div></div>
+          <div class="team-opt" data-team="C" onclick="selectCreateUserTeam('C')"><div class="team-opt-letter">C</div><div class="team-opt-label">チームC</div></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">権限</label>
+        <div class="role-options">
+          <div class="role-opt sel-viewer" data-role="viewer" onclick="selectCreateUserRole('viewer')">
+            <div class="role-opt-icon">👁️</div>
+            <div class="role-opt-label">閲覧者</div>
+          </div>
+          <div class="role-opt" data-role="admin" onclick="selectCreateUserRole('admin')">
+            <div class="role-opt-icon">👑</div>
+            <div class="role-opt-label">管理者</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeCreateUser()">キャンセル</button>
+      <button class="btn btn-save" id="btnCreateUserSave" onclick="doCreateUser()">作成する</button>
     </div>
   </div>
 </div>
