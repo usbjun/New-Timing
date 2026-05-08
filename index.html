@@ -53,6 +53,9 @@
       <button class="btn-add-main" id="btnAddMain" onclick="openAddModal()">
         <span style="font-size:16px;line-height:1">＋</span> 商品追加
       </button>
+      <button class="btn-add-main btn-import-excel" id="btnImportExcel" onclick="openImportModal()" style="display:none">
+        <span style="font-size:14px;line-height:1">📥</span> Excel取込
+      </button>
     </div>
     <div class="header-right">
       <!-- ユーザー情報（JS で描画） -->
@@ -285,6 +288,39 @@
     <div class="modal-footer">
       <button class="btn btn-cancel" onclick="closeCreateUser()">キャンセル</button>
       <button class="btn btn-save" id="btnCreateUserSave" onclick="doCreateUser()">作成する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Excel一括取り込みモーダル ===== -->
+<div class="overlay" id="importOverlay">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <div class="modal-title">📥 Excelから一括取り込み</div>
+      <button class="btn-modal-close" onclick="closeImportModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="importDropZone" onclick="document.getElementById('importFileInput').click()">
+        <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleImportFileChange(event)">
+        <div class="import-drop-icon">📂</div>
+        <div class="import-drop-text">Excelファイルをドロップ、またはクリックして選択</div>
+        <div class="import-drop-sub">.xlsx / .xls 対応</div>
+      </div>
+      <div id="importCatArea" style="display:none">
+        <div class="form-group" style="margin-top:16px">
+          <label class="form-label">案内区分（全取り込み商品に適用）<span class="required">*</span></label>
+          <div class="cat-options">
+            <div class="cat-opt" data-cat="1" onclick="selectImportCat(1)"><div class="cat-opt-num">①</div><div class="cat-opt-desc">4か月前案内<br>チラシ準備可能</div></div>
+            <div class="cat-opt" data-cat="2" onclick="selectImportCat(2)"><div class="cat-opt-num">②</div><div class="cat-opt-desc">3か月前案内<br>予測発注可能</div></div>
+            <div class="cat-opt" data-cat="3" onclick="selectImportCat(3)"><div class="cat-opt-num">③</div><div class="cat-opt-desc">3か月前案内<br>予測不能・生産可</div></div>
+          </div>
+        </div>
+        <div id="importPreview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeImportModal()">キャンセル</button>
+      <button class="btn btn-save" id="btnDoImport" onclick="doImport()" disabled>取り込む</button>
     </div>
   </div>
 </div>

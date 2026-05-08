@@ -469,6 +469,46 @@ select.form-input  { appearance: auto; }
 .role-opt[data-role="admin"]  .role-opt-label { color: #92400e; }
 .role-opt[data-role="viewer"] .role-opt-label { color: #166534; }
 
+/* ===== EXCEL IMPORT MODAL ===== */
+#importDropZone {
+  border: 2px dashed #cbd5e1; border-radius: 10px;
+  padding: 28px 20px; text-align: center; cursor: pointer;
+  transition: all 0.18s; background: #f8fafc;
+}
+#importDropZone:hover, #importDropZone.drag-hover {
+  border-color: #22c55e; background: #f0fdf4;
+}
+#importDropZone.has-file {
+  border-color: #22c55e; background: #f0fdf4; border-style: solid;
+}
+.import-drop-icon { font-size: 32px; margin-bottom: 8px; }
+.import-drop-text { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+.import-drop-sub  { font-size: 11px; color: #94a3b8; }
+
+.import-preview-wrap {
+  max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;
+}
+.import-preview-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.import-preview-table th {
+  position: sticky; top: 0; background: #f1f5f9;
+  padding: 6px 8px; text-align: left; font-weight: 700; color: #475569;
+  border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+.import-preview-table td {
+  padding: 5px 8px; border-bottom: 1px solid #f1f5f9; color: #0f172a; white-space: nowrap;
+}
+.import-preview-table tr:last-child td { border-bottom: none; }
+.import-preview-table tr:hover td { background: #f8fafc; }
+
+.btn-import-excel {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+}
+.btn-import-excel:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+}
+
 /* ===== SCROLLBAR ===== */
 .timeline::-webkit-scrollbar { height: 6px; width: 6px; }
 .timeline::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 3px; }

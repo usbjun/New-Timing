@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import * as XLSX from 'xlsx'
 import './style.css'
 
 // ============================================================
@@ -42,6 +43,10 @@ let profileTeamSel   = ''
 // ユーザー作成
 let createUserTeamSel = ''
 let createUserRoleSel = 'viewer'
+
+// Excel取り込み
+let importCatSel = 0
+let importRows   = []
 
 // ============================================================
 //  月リスト (2026年4月 〜 2027年8月)
@@ -194,6 +199,12 @@ function updateHeaderUser() {
   const teamCls   = teamBgClass(currentUser.team)
   const teamLabel = currentUser.team || '—'
   const isAdmin   = currentUser.role === 'admin'
+
+  // 管理者のみ追加ボタン・Excel取込ボタンを表示
+  const btnAdd = document.getElementById('btnAddMain')
+  if (btnAdd) btnAdd.style.display = isAdmin ? '' : 'none'
+  const btnImport = document.getElementById('btnImportExcel')
+  if (btnImport) btnImport.style.display = isAdmin ? '' : 'none'
 
   area.innerHTML = `
     <div style="display:flex;align-items:center;gap:6px;">
@@ -420,7 +431,7 @@ function resetProductForm() {
 
 function selectCat(n) {
   selectedCat = n
-  document.querySelectorAll('.cat-opt').forEach(el => {
+  document.querySelectorAll('#overlay .cat-opt').forEach(el => {
     el.className = 'cat-opt'
     if (Number(el.dataset.cat) === n) el.classList.add('sel-' + n)
   })
@@ -762,6 +773,178 @@ async function doCreateUser() {
 window.doCreateUser = doCreateUser
 
 // ============================================================
+//  Excel一括取り込み（管理者専用）
+// ============================================================
+function excelDateToYYYYMM(val) {
+  if (!val) return ''
+  if (typeof val === 'number') {
+    const date = new Date((val - 25569) * 86400 * 1000)
+    const y = date.getUTCFullYear()
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+    return `${y}-${m}`
+  }
+  const s = String(val).trim()
+  const match = s.match(/(\d{4})[\/\-](\d{1,2})/)
+  if (match) return `${match[1]}-${match[2].padStart(2, '0')}`
+  return ''
+}
+
+function parseExcelRows(ws) {
+  const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  const rows = []
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i]
+    const name = String(row[4] || '').trim()
+    if (!name) continue
+    const release = excelDateToYYYYMM(row[0])
+    const rawTeam = String(row[5] || '').trim().toUpperCase()
+    const team    = ['A', 'B', 'C'].includes(rawTeam) ? rawTeam : ''
+    const person  = String(row[6] || '').trim()
+    const price   = row[7] !== '' ? String(row[7]) : ''
+    const bct     = String(row[10] || '').trim()
+    let box = '', ctn = ''
+    if (bct.includes('*')) {
+      const parts = bct.split('*')
+      const a = parseInt(parts[0], 10), b = parseInt(parts[1], 10)
+      if (!isNaN(a)) box = String(a)
+      if (!isNaN(a) && !isNaN(b)) ctn = String(a * b)
+    }
+    rows.push({ name, release, team, person, price, box, ctn })
+  }
+  return rows
+}
+
+function renderImportPreview(rows) {
+  const preview = document.getElementById('importPreview')
+  if (!rows.length) {
+    preview.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:16px 0;">取り込める商品が見つかりませんでした</div>'
+    updateImportBtn(); return
+  }
+  preview.innerHTML = `
+    <div style="margin-top:14px;">
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">${rows.length}件の商品が見つかりました</div>
+      <div class="import-preview-wrap">
+        <table class="import-preview-table">
+          <thead><tr>
+            <th>商品名</th><th>発売月</th><th>チーム</th><th>担当</th><th>価格</th><th>BOX</th><th>CTN</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${esc(r.name)}</td>
+              <td>${r.release || '<span style="color:#ef4444">—</span>'}</td>
+              <td>${r.team || '—'}</td>
+              <td>${esc(r.person) || '—'}</td>
+              <td>${r.price ? '¥' + Number(r.price).toLocaleString() : '—'}</td>
+              <td>${r.box || '—'}</td>
+              <td>${r.ctn || '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`
+  updateImportBtn()
+}
+
+function updateImportBtn() {
+  const btn = document.getElementById('btnDoImport')
+  if (!btn) return
+  const ok = importRows.length > 0 && importCatSel > 0
+  btn.disabled = !ok
+  btn.textContent = ok ? `取り込む（${importRows.length}件）` : '取り込む'
+}
+
+function openImportModal() {
+  if (currentUser?.role !== 'admin') { showToast('管理者のみ利用可能です', true); return }
+  importCatSel = 0; importRows = []
+  document.getElementById('importFileInput').value = ''
+  document.getElementById('importDropZone').classList.remove('has-file')
+  document.getElementById('importDropZone').querySelector('.import-drop-text').textContent =
+    'Excelファイルをドロップ、またはクリックして選択'
+  document.getElementById('importCatArea').style.display = 'none'
+  document.getElementById('importPreview').innerHTML = ''
+  document.querySelectorAll('#importOverlay .cat-opt').forEach(el => el.className = 'cat-opt')
+  updateImportBtn()
+  document.getElementById('importOverlay').classList.add('open')
+}
+window.openImportModal = openImportModal
+
+function closeImportModal() {
+  document.getElementById('importOverlay').classList.remove('open')
+}
+window.closeImportModal = closeImportModal
+
+function selectImportCat(c) {
+  importCatSel = c
+  document.querySelectorAll('#importOverlay .cat-opt').forEach(el => {
+    el.className = 'cat-opt'
+    if (Number(el.dataset.cat) === c) el.classList.add('sel-' + c)
+  })
+  updateImportBtn()
+}
+window.selectImportCat = selectImportCat
+
+function handleImportFileChange(e) {
+  const file = e.target.files[0]
+  if (file) handleImportFile(file)
+}
+window.handleImportFileChange = handleImportFileChange
+
+function handleImportFile(file) {
+  const dropZone = document.getElementById('importDropZone')
+  const reader = new FileReader()
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      importRows = parseExcelRows(ws)
+      const nameText = file.name + `（${importRows.length}件）`
+      dropZone.classList.add('has-file')
+      dropZone.querySelector('.import-drop-text').textContent = nameText
+      document.getElementById('importCatArea').style.display = ''
+      renderImportPreview(importRows)
+    } catch(err) {
+      showToast('ファイルの読み込みに失敗しました: ' + err.message, true)
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+async function doImport() {
+  if (!importRows.length) { showToast('取り込む商品がありません', true); return }
+  if (!importCatSel) { showToast('案内区分を選択してください', true); return }
+
+  const btn = document.getElementById('btnDoImport')
+  btn.disabled = true; btn.textContent = '取り込み中…'
+
+  try {
+    const baseOrder = products.length
+    const newProducts = importRows.map((r, i) => ({
+      id:         uid(),
+      name:       r.name,
+      release:    r.release,
+      price:      r.price,
+      box:        r.box,
+      ctn:        r.ctn,
+      person:     r.person,
+      team:       r.team,
+      cat:        importCatSel,
+      sort_order: baseOrder + i,
+    }))
+    const { error } = await supabase.from('products').insert(newProducts)
+    if (error) throw error
+    products.push(...newProducts)
+    closeImportModal()
+    buildTimeline()
+    showToast(`${newProducts.length}件の商品を取り込みました`)
+  } catch(err) {
+    showToast('取り込みに失敗しました: ' + err.message, true)
+    btn.disabled = false
+    updateImportBtn()
+  }
+}
+window.doImport = doImport
+
+// ============================================================
 //  ドラッグ & ドロップ（並び順変更対応）
 // ============================================================
 let drag = null
@@ -924,6 +1107,22 @@ document.querySelectorAll('.overlay').forEach(ov => {
   ov.addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open')
   })
+})
+
+// Excel ドロップゾーンのドラッグ&ドロップ
+const importDropZone = document.getElementById('importDropZone')
+importDropZone.addEventListener('dragover', e => {
+  e.preventDefault()
+  importDropZone.classList.add('drag-hover')
+})
+importDropZone.addEventListener('dragleave', () => {
+  importDropZone.classList.remove('drag-hover')
+})
+importDropZone.addEventListener('drop', e => {
+  e.preventDefault()
+  importDropZone.classList.remove('drag-hover')
+  const file = e.dataTransfer.files[0]
+  if (file) handleImportFile(file)
 })
 
 function updateChipByScroll() {
