@@ -93,7 +93,22 @@ AS $$
 $$;
 
 -- ============================================================
--- 5. Row Level Security (RLS)
+-- 5. 管理者チェック用ヘルパー関数
+--    SECURITY DEFINER で RLS をバイパスして再帰クエリを防ぐ
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+-- ============================================================
+-- 6. Row Level Security (RLS)
 -- ============================================================
 
 -- ---------- products ----------
@@ -113,21 +128,15 @@ DROP POLICY IF EXISTS "admin_delete"         ON products;
 CREATE POLICY "authenticated_select" ON products
   FOR SELECT TO authenticated USING (true);
 
--- 管理者のみ追加・更新・削除可能
+-- 管理者のみ追加・更新・削除可能（is_admin() で再帰クエリを回避）
 CREATE POLICY "admin_insert" ON products FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
-  ));
+  WITH CHECK (public.is_admin());
 
 CREATE POLICY "admin_update" ON products FOR UPDATE TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
-  ));
+  USING (public.is_admin());
 
 CREATE POLICY "admin_delete" ON products FOR DELETE TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
-  ));
+  USING (public.is_admin());
 
 -- ---------- profiles ----------
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -144,17 +153,12 @@ CREATE POLICY "profiles_select" ON profiles
 CREATE POLICY "profiles_insert" ON profiles
   FOR INSERT TO authenticated WITH CHECK (true);
 
--- 自分自身か管理者のみ更新可
+-- 自分自身か管理者のみ更新可（is_admin() で再帰クエリを回避）
 CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated
-  USING (
-    auth.uid() = id
-    OR EXISTS (
-      SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.uid() = id OR public.is_admin());
 
 -- ============================================================
--- 6. 初期管理者の設定（初回のみ実行）
+-- 7. 初期管理者の設定（初回のみ実行）
 --    1. まず下記 SQL でユーザー一覧を確認し、管理者にするユーザーの UUID を取得
 --       SELECT id, email FROM auth.users;
 --    2. 次の行の UUID を書き換えて実行

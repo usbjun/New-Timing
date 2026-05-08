@@ -348,8 +348,9 @@ async function dbDelete(id) {
 
 async function dbSyncOrder() {
   if (!products.length) return
+  // 部分データの upsert は NOT NULL 制約に違反するため全フィールドを含める
   const { error } = await supabase.from('products')
-    .upsert(products.map((p, i) => ({ id: p.id, sort_order: i })))
+    .upsert(products.map((p, i) => ({ ...p, sort_order: i })))
   if (error) throw error
 }
 
