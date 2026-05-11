@@ -285,6 +285,14 @@ function buildTimeline() {
     const prods4 = products.filter(p => p.release === key && p.cat === 1)
     const prods3 = products.filter(p => p.release === key && (p.cat === 2 || p.cat === 3))
 
+    // 案内タイル（left-cell）の商品数: 当月4か月前 + 前月3か月前（同じ案内月に属する）
+    const [ys, ms] = key.split('-').map(Number)
+    let pm = ms - 1, py = ys
+    if (pm <= 0) { pm += 12; py-- }
+    const prevKey = `${py}-${String(pm).padStart(2, '0')}`
+    const prevProds3 = products.filter(p => p.release === prevKey && (p.cat === 2 || p.cat === 3))
+    const announceTileCount = prods4.length + prevProds3.length
+
     const col = document.createElement('div')
     col.className = 'month-column'
     col.id = 'col-' + key
@@ -293,6 +301,11 @@ function buildTimeline() {
         ${key === TODAY_KEY ? '<div class="today-dot"></div>' : ''}
         <div class="month-label">${mo.m}月 <span class="year-label">${mo.y}年</span></div>
         <div class="month-tag">発売月</div>
+        <div class="release-count">${prods4.length + prods3.length}商品</div>
+      </div>
+      <div class="announce-band">
+        <div class="announce-band-cell"><span class="announce-label">${announceLabel(key, 4)}<span class="announce-count">${announceTileCount}商品</span></span></div>
+        <div class="announce-band-cell"></div>
       </div>
       <div class="sub-columns">
         <div class="sub-col">
