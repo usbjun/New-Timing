@@ -225,7 +225,7 @@ body {
 }
 
 /* ===== MONTH COLUMN ===== */
-.month-column { flex-shrink: 0; width: 296px; display: flex; flex-direction: column; }
+.month-column { flex-shrink: 0; width: 444px; display: flex; flex-direction: column; }
 .month-column-header {
   border-radius: 10px 10px 0 0; padding: 10px 14px 8px;
   background: #1e293b; color: white; text-align: center; position: relative;

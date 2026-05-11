@@ -279,7 +279,7 @@ function buildTimeline() {
           <div class="tile-area" id="area4-${key}">
             ${prods4.length ? prods4.map(tileHtml).join('') : emptyState()}
           </div>
-          <button class="btn-in-col" data-release="${key}" data-defaultcat="1">＋ 追加</button>
+          ${currentUser?.role === 'admin' ? `<button class="btn-in-col" data-release="${key}" data-defaultcat="1">＋ 追加</button>` : ''}
         </div>
         <div class="sub-col">
           <div class="sub-col-header type-3">
@@ -289,7 +289,7 @@ function buildTimeline() {
           <div class="tile-area" id="area3-${key}">
             ${prods3.length ? prods3.map(tileHtml).join('') : emptyState()}
           </div>
-          <button class="btn-in-col" data-release="${key}" data-defaultcat="23">＋ 追加</button>
+          ${currentUser?.role === 'admin' ? `<button class="btn-in-col" data-release="${key}" data-defaultcat="23">＋ 追加</button>` : ''}
         </div>
       </div>`
     tl.appendChild(col)
@@ -410,6 +410,19 @@ function openEditModal(id) {
   if (p.team) selectTeam(p.team)
   selectCat(p.cat)
   document.getElementById('overlay').classList.add('open')
+
+  // viewer の場合：読み取り専用モードにする
+  const isViewer = currentUser?.role !== 'admin'
+  ;['fName', 'fRelease', 'fPrice', 'fBox', 'fCtn', 'fPerson'].forEach(inputId => {
+    document.getElementById(inputId).disabled = isViewer
+  })
+  document.querySelectorAll('#overlay .cat-opt, #overlay .team-opt').forEach(el => {
+    el.style.pointerEvents = isViewer ? 'none' : ''
+  })
+  document.getElementById('btnSave').style.display = isViewer ? 'none' : ''
+  document.getElementById('btnDelete').style.display = isViewer ? 'none' : 'block'
+  const btnCancel = document.querySelector('#overlay .btn-cancel')
+  if (btnCancel) btnCancel.textContent = isViewer ? '閉じる' : 'キャンセル'
 }
 
 function closeModal() {
@@ -421,9 +434,10 @@ window.closeModal = closeModal
 function resetProductForm() {
   ;['fName','fPrice','fBox','fCtn','fPerson'].forEach(id => {
     const el = document.getElementById(id)
-    el.value = ''; el.classList.remove('error')
+    el.value = ''; el.classList.remove('error'); el.disabled = false
   })
   document.getElementById('fRelease').value = TODAY_KEY
+  document.getElementById('fRelease').disabled = false
   selectedCat = null; selectedTeam = null
   document.querySelectorAll('.cat-opt').forEach(el => el.className = 'cat-opt')
   document.querySelectorAll('#overlay .team-opt').forEach(el => el.className = 'team-opt')
@@ -995,6 +1009,7 @@ document.addEventListener('mousemove', function(e) {
   const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY
 
   if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 6) {
+    if (currentUser?.role !== 'admin') return
     drag.moved = true
     const p = products.find(x => x.id === drag.id)
     const ghost = drag.tile.cloneNode(true)
