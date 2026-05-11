@@ -260,17 +260,15 @@ function scrollToInitialPosition() {
   d4.setMonth(d4.getMonth() + 4)
   const key4 = d4.getFullYear() + '-' + String(d4.getMonth() + 1).padStart(2, '0')
 
-  const col3 = document.getElementById('col-' + key3)
   const col4 = document.getElementById('col-' + key4)
-  if (col3 && col4) {
-    const tlRect  = tl.getBoundingClientRect()
-    const col3Rect = col3.getBoundingClientRect()
+  if (col4) {
+    const tlRect   = tl.getBoundingClientRect()
     const col4Rect = col4.getBoundingClientRect()
-    // 3か月後の右端と4か月後の左端の中間が画面中央に来るよう調整
-    const midX   = (col3Rect.right + col4Rect.left) / 2
+    // 4か月後の列の中央が画面中央に来るよう調整
+    const midX    = (col4Rect.left + col4Rect.right) / 2
     const centerX = tlRect.left + tlRect.width / 2
     tl.scrollLeft += midX - centerX
-    setActiveChip(key3)
+    setActiveChip(key4)
   } else {
     jumpToMonth(TODAY_KEY)
   }
