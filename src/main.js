@@ -311,12 +311,13 @@ function emptyState() {
 }
 
 function tileHtml(p) {
-  const price   = p.price ? `¥${Number(p.price).toLocaleString()}` : '—'
-  const box     = p.box   || '—'
-  const ctn     = p.ctn   || '—'
-  const person  = esc(p.person || '—')
-  const teamCls = teamBgClass(p.team)
-  const teamLbl = p.team || '?'
+  const price    = p.price ? `¥${Number(p.price).toLocaleString()}` : '—'
+  const box      = p.box   || '—'
+  const ctn      = p.ctn   || '—'
+  const person   = esc(p.person || '—')
+  const teamCls  = teamBgClass(p.team)
+  const teamLbl  = p.team || '?'
+  const noteIcon = p.note ? `<span class="tile-note-icon" title="${esc(p.note)}">📝</span>` : ''
   return `
     <div class="product-tile cat-${p.cat}" data-id="${p.id}">
       <div class="tile-badge cat-${p.cat}">${p.cat}</div>
@@ -328,6 +329,7 @@ function tileHtml(p) {
       <div class="tile-footer">
         <span class="team-badge ${teamCls}">${teamLbl}</span>
         <span class="tile-person" title="${person}">${person}</span>
+        ${noteIcon}
         <span class="tile-price">${price}</span>
       </div>
     </div>`
@@ -407,13 +409,14 @@ function openEditModal(id) {
   document.getElementById('fBox').value     = p.box    || ''
   document.getElementById('fCtn').value     = p.ctn    || ''
   document.getElementById('fPerson').value  = p.person || ''
+  document.getElementById('fNote').value    = p.note   || ''
   if (p.team) selectTeam(p.team)
   selectCat(p.cat)
   document.getElementById('overlay').classList.add('open')
 
   // viewer の場合：読み取り専用モードにする
   const isViewer = currentUser?.role !== 'admin'
-  ;['fName', 'fRelease', 'fPrice', 'fBox', 'fCtn', 'fPerson'].forEach(inputId => {
+  ;['fName', 'fRelease', 'fPrice', 'fBox', 'fCtn', 'fPerson', 'fNote'].forEach(inputId => {
     document.getElementById(inputId).disabled = isViewer
   })
   document.querySelectorAll('#overlay .cat-opt, #overlay .team-opt').forEach(el => {
@@ -432,7 +435,7 @@ function closeModal() {
 window.closeModal = closeModal
 
 function resetProductForm() {
-  ;['fName','fPrice','fBox','fCtn','fPerson'].forEach(id => {
+  ;['fName','fPrice','fBox','fCtn','fPerson','fNote'].forEach(id => {
     const el = document.getElementById(id)
     el.value = ''; el.classList.remove('error'); el.disabled = false
   })
@@ -475,6 +478,7 @@ async function saveProduct() {
     box:        document.getElementById('fBox').value,
     ctn:        document.getElementById('fCtn').value,
     person:     document.getElementById('fPerson').value.trim(),
+    note:       document.getElementById('fNote').value.trim(),
     team:       selectedTeam || '',
     cat:        selectedCat,
     sort_order: existing ? existing.sort_order : products.length,

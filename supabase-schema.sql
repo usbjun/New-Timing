@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS products (
   ctn         TEXT,
   person      TEXT        DEFAULT '',
   team        TEXT        DEFAULT '',
+  note        TEXT        DEFAULT '',
   cat         INTEGER     NOT NULL CHECK (cat IN (1, 2, 3)),
   sort_order  INTEGER     DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
