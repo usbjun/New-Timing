@@ -250,6 +250,32 @@ function jumpToMonth(key) {
   setActiveChip(key)
 }
 
+function scrollToInitialPosition() {
+  const tl = document.getElementById('timeline')
+  // 当月の3か月後・4か月後のキーを計算
+  const d3 = new Date(TODAY_KEY + '-01')
+  d3.setMonth(d3.getMonth() + 3)
+  const key3 = d3.getFullYear() + '-' + String(d3.getMonth() + 1).padStart(2, '0')
+  const d4 = new Date(TODAY_KEY + '-01')
+  d4.setMonth(d4.getMonth() + 4)
+  const key4 = d4.getFullYear() + '-' + String(d4.getMonth() + 1).padStart(2, '0')
+
+  const col3 = document.getElementById('col-' + key3)
+  const col4 = document.getElementById('col-' + key4)
+  if (col3 && col4) {
+    const tlRect  = tl.getBoundingClientRect()
+    const col3Rect = col3.getBoundingClientRect()
+    const col4Rect = col4.getBoundingClientRect()
+    // 3か月後の右端と4か月後の左端の中間が画面中央に来るよう調整
+    const midX   = (col3Rect.right + col4Rect.left) / 2
+    const centerX = tlRect.left + tlRect.width / 2
+    tl.scrollLeft += midX - centerX
+    setActiveChip(key3)
+  } else {
+    jumpToMonth(TODAY_KEY)
+  }
+}
+
 // ============================================================
 //  タイムライン描画
 // ============================================================
@@ -1173,7 +1199,7 @@ async function initData() {
   } finally {
     // 成功・失敗どちらでも必ずタイムラインを描画
     buildTimeline()
-    setTimeout(() => jumpToMonth(TODAY_KEY), 120)
+    setTimeout(() => scrollToInitialPosition(), 120)
     setLoading(false)
   }
 }
