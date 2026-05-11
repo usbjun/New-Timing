@@ -319,7 +319,13 @@ body {
   padding: 2px 5px; border-radius: 3px; flex: 0 1 70%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tile-note-icon { font-size: 11px; flex-shrink: 0; cursor: default; }
+.tile-note-badge {
+  font-size: 9px; font-weight: 800; color: white;
+  background: #dc2626; border-radius: 4px;
+  width: 36px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: default;
+}
 .tile-price { font-size: 11px; font-weight: 800; color: #dc2626; white-space: nowrap; }
 
 /* ===== DRAG GHOST ===== */

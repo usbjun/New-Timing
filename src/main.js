@@ -317,7 +317,7 @@ function tileHtml(p) {
   const person   = esc(p.person || '—')
   const teamCls  = teamBgClass(p.team)
   const teamLbl  = p.team || '?'
-  const noteIcon = p.note ? `<span class="tile-note-icon" title="${esc(p.note)}">📝</span>` : ''
+  const noteIcon = p.note ? `<span class="tile-note-badge" title="${esc(p.note)}">備考</span>` : ''
   return `
     <div class="product-tile cat-${p.cat}" data-id="${p.id}">
       <div class="tile-badge cat-${p.cat}">${p.cat}</div>
